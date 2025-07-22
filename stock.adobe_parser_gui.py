@@ -76,7 +76,6 @@ async def main(page: ft.Page):
     def set_controls_enabled(enabled: bool):
         for ctrl in interactive_controls:
             ctrl.disabled = not enabled
-        tabs.disabled = not enabled
         page.update()
 
     async def start_processing(e):
@@ -235,6 +234,17 @@ async def main(page: ft.Page):
                                                padding=ft.padding.all(15)
                                            ))
 
+    interactive_controls.extend([
+        links_input,
+        depth_input,
+        archive_browse_btn,
+        num_batches_input,
+        batch_size_input,
+        remove_from_archive_cb,
+        batches_browse_btn,
+        create_batches_btn
+    ])
+
     tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
@@ -301,18 +311,6 @@ async def main(page: ft.Page):
             ),
         ]
     )
-
-    interactive_controls.extend([
-        links_input,
-        depth_input,
-        archive_browse_btn,
-        num_batches_input,
-        batch_size_input,
-        remove_from_archive_cb,
-        batches_browse_btn,
-        create_batches_btn,
-        tabs
-    ])
 
     page.add(
         ft.Column(
