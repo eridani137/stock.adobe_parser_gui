@@ -1,8 +1,15 @@
 # =============================================================================
-# PowerShell Build Script - The Final Victorious Version
+# PowerShell Build Script - The Smart & Robust Version
 #
 # Описание:
-#   Включает ВСЕ найденные зависимости для camoufox.
+#   Автоматически находит и включает все необходимые файлы-данные
+#   из пакета 'camoufox', делая сборку надежной и устойчивой к обновлениям.
+#
+# ИСПОЛЬЗОВАНИЕ:
+#   1. Установите pyinstaller: pip install pyinstaller
+#   2. Убедитесь, что выполнен `playwright install`.
+#   3. Поместите этот скрипт в корневую папку проекта.
+#   4. Запустите его из терминала: .\build.ps1
 # =============================================================================
 
 # --- НАСТРОЙКИ СБОРКИ ---
@@ -15,7 +22,7 @@ $IconFile = ""
 # --- НАЧАЛО ПРОЦЕССА СБОРКИ ---
 
 Clear-Host
-Write-Host "🚀 Начинаю сборку для '$AppName' по ВАШЕЙ проверенной методике..." -ForegroundColor Cyan
+Write-Host "🚀 Начинаю умную сборку для '$AppName'..." -ForegroundColor Cyan
 
 # 0. Проверки
 Write-Host "❗ ВАЖНО: Для этого скрипта требуется PyInstaller. Выполните 'pip install pyinstaller'." -ForegroundColor Yellow
@@ -42,20 +49,21 @@ Write-Host "✅ Очистка завершена."
 # --- ЭТАП 1: ГЕНЕРАЦИЯ .SPEC ФАЙЛА С НУЛЯ ---
 Write-Host "⚙️  ЭТАП 1: Генерирую финальный .spec файл..."
 
-# Списки зависимостей
+# --- ИСПРАВЛЕНИЕ: Добавлены недостающие запятые ---
+
+# 1. Основные файлы проекта
 $addData = @(
     "('ImageParser.py', '.'),",
     "('config.py', '.'),",
     "('utils.py', '.'),",
-    "('configure_logger.py', '.'),",
-    "('$($sitePackagesPath)\\browserforge\\fingerprints\\data', 'browserforge\\fingerprints\\data'),",
-    "('$($sitePackagesPath)\\browserforge\\headers\\data', 'browserforge\\headers\\data'),",
-    "('$($sitePackagesPath)\\camoufox\\browserforge.yml', 'camoufox'),",
-    "('$($sitePackagesPath)\\camoufox\\warnings.yml', 'camoufox'),",
-    # *** ПОСЛЕДНЕЕ ИСПРАВЛЕНИЕ ЗДЕСЬ ***
-    "('$($sitePackagesPath)\\camoufox\\territoryInfo.xml', 'camoufox'),",
-    "('$($sitePackagesPath)\\language_tags\\data', 'language_tags\\data')"
+    "('configure_logger.py', '.'),"
 )
+
+# 2. Данные других библиотек
+$addData += "('$($sitePackagesPath)\\browserforge', 'browserforge'),"
+$addData += "('$($sitePackagesPath)\\language_tags', 'language_tags'),"
+$addData += "('$($sitePackagesPath)\\camoufox', 'camoufox'),"
+
 
 $hiddenImports = @(
     "'camoufox',",

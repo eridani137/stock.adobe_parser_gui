@@ -44,6 +44,16 @@ async def main(page: ft.Page):
     page.overlay.append(file_picker)
 
     def add_log(message, level="info"):
+        log_level_str = level.lower()
+        if log_level_str == "error":
+            logger.error(message)
+        elif log_level_str == "warning":
+            logger.warning(message)
+        elif log_level_str == "debug":
+            logger.debug(message)
+        else:
+            logger.info(message)
+
         level_colors = {
             "debug": ft.Colors.GREY,
             "info": ft.Colors.GREEN,
@@ -66,6 +76,7 @@ async def main(page: ft.Page):
     def set_controls_enabled(enabled: bool):
         for ctrl in interactive_controls:
             ctrl.disabled = not enabled
+        tabs.disabled = not enabled
         page.update()
 
     async def start_processing(e):
@@ -224,17 +235,6 @@ async def main(page: ft.Page):
                                                padding=ft.padding.all(15)
                                            ))
 
-    interactive_controls.extend([
-        links_input,
-        depth_input,
-        archive_browse_btn,
-        num_batches_input,
-        batch_size_input,
-        remove_from_archive_cb,
-        batches_browse_btn,
-        create_batches_btn
-    ])
-
     tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
@@ -301,6 +301,18 @@ async def main(page: ft.Page):
             ),
         ]
     )
+
+    interactive_controls.extend([
+        links_input,
+        depth_input,
+        archive_browse_btn,
+        num_batches_input,
+        batch_size_input,
+        remove_from_archive_cb,
+        batches_browse_btn,
+        create_batches_btn,
+        tabs
+    ])
 
     page.add(
         ft.Column(
