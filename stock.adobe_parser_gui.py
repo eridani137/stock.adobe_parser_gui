@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import flet as ft
 import os
 import csv
@@ -8,7 +10,7 @@ from datetime import datetime
 import re
 
 from camoufox import AsyncCamoufox
-from playwright.async_api import async_playwright
+from playwright.async_api import Page
 
 import config
 import utils
@@ -16,6 +18,49 @@ from configure_logger import configure
 
 logger = logging.getLogger(__name__)
 configure(logger)
+
+
+async def goto_next_page(page: Page) -> Tuple[bool, bool]:
+    max_retries = 7
+    next_page_clicked = False
+    is_complete = False
+    selector = "xpath=//div[@id='pagination-element']/nav/span[last()]/button"
+
+    for retry in range(max_retries):
+        try:
+            await asyncio.sleep(config.LONG_DELAY)
+            next_page = await page.query_selector(selector)
+
+            if next_page:
+                if await next_page.is_disabled():
+                    is_complete = True
+                    break
+                is_attached = await next_page.evaluate("el => el.isConnected")
+                if not is_attached:
+                    logger.warning(f"Элемент кнопки не прикреплен к DOM, повторная попытка {retry + 1}")
+                    continue
+
+                next_page_locator = page.locator(selector)
+
+                await next_page_locator.click()
+
+                next_page_clicked = True
+                break
+            else:
+                logger.warning("Кнопка следующей страницы не найдена")
+                break
+
+        except Exception as e:
+            logger.warning(
+                f"Ошибка при попытке перейти на следующую страницу (попытка {retry + 1}): {e}")
+            if retry < max_retries - 1:
+                await asyncio.sleep(2)
+                continue
+            else:
+                logger.error("Не удалось перейти на следующую страницу после всех попыток")
+                break
+
+    return is_complete, next_page_clicked
 
 
 class ImageParser:
@@ -106,55 +151,74 @@ class ImageParser:
                         names_writer.writerow(['ID', 'Prompt'])
 
                     current_id = self.get_next_id()
-                    await page.goto(url, wait_until='domcontentloaded')
+                    await page.goto(url)
+
                     await asyncio.sleep(config.LONG_DELAY)
 
-                    pages_processed = 0
-                    while self.is_running and (depth == 0 or pages_processed < depth):
-                        await asyncio.sleep(3)
-                        images = await page.query_selector_all("div[data-t] a")
-                        if not images:
-                            self.log("На странице не найдено изображений.")
-                            break
+                    need_wait_selector = False
 
-                        for image in images:
-                            if not self.is_running:
-                                break
-                            try:
-                                name_elem = await image.query_selector("img")
-                                if name_elem:
-                                    name = await name_elem.get_attribute("alt")
-                                    if name:
-                                        name = name.replace('\n', ' ').strip()
-                                        name = re.sub(r'\s+', ' ', name).strip()
-                                        names_writer.writerow([current_id, name])
-                                        names_file.flush()
-                                        parsed_count += 1
-                                        current_id += 1
-                                        self.log(f"[{parsed_count}] Обработано: {name}")
-                            except Exception as e:
-                                self.log(f"Ошибка при обработке изображения: {e}")
-
-                        pages_processed += 1
-                        self.log(f"Обработана страница {pages_processed}")
-
-                        if 0 < depth <= pages_processed:
-                            break
-
+                    passed_pages = 0
+                    while self.is_running and (depth == 0 or passed_pages < depth):
                         try:
-                            next_button = await page.query_selector('a.js-next-page')
-                            if next_button and await next_button.is_enabled():
-                                await next_button.click()
-                                await page.wait_for_load_state('domcontentloaded')
-                            else:
-                                self.log("Достигнута последняя страница.")
+                            await asyncio.sleep(3)
+
+                            if need_wait_selector:
+                                await asyncio.sleep(config.LONG_DELAY)
+
+                            self.log(f"Обработка страницы #{passed_pages + 1}")
+
+                            images = await page.query_selector_all("xpath=//div[@id='search-results']/div/div/a")
+                            if not images:
+                                self.log("На странице не найдено изображений.")
+                                continue
+
+                            for image in images:
+                                if not self.is_running:
+                                    break
+                                try:
+                                    image_href = await image.get_attribute("href")
+                                    image_name_elem = await image.query_selector("xpath=/meta[@itemprop='name']")
+                                    duration = await image.query_selector("xpath=/meta[@itemprop='duration']")
+                                    if image_name_elem and image_href and not duration and not "/3d-assets/" in image_href and not "/templates/" in image_href:
+                                        image_href += "?prev_url=detail"
+                                        image_name_content = await image_name_elem.get_attribute("content")
+                                        if image_name_content:
+                                            name = image_name_content.replace('\n', ' ').strip()
+                                            name = re.sub(r'\s+', ' ', name).strip()
+
+                                            if name:
+                                                names_writer.writerow([current_id, name])
+                                                names_file.flush()
+
+                                                self.log(f"[{current_id}] {name}")
+
+                                                parsed_count += 1
+                                                current_id += 1
+                                except Exception as e:
+                                    self.log(f"Ошибка при обработке изображения: {e}")
+
+                            passed_pages += 1
+
+                            if 0 < depth <= passed_pages:
+                                self.log(f"Достигнута заданная глубина обработки: {depth} страниц.")
                                 break
-                        except Exception as e:
-                            self.log(f"Не удалось перейти на следующую страницу: {e}")
-                            break
+
+                            is_complete, next_page_clicked = await goto_next_page(page)
+                            need_wait_selector = True
+
+                            if is_complete:
+                                logger.info("Достигнута последняя доступная страница")
+                                break
+
+                            if not next_page_clicked:
+                                logger.warning("Не удалось найти или нажать кнопку следующей страницы")
+                                break
+
+                        except Exception:
+                            continue
 
                 self.save_link_to_archive(url)
-                self.log(f"Завершена обработка ссылки. Получено описаний: {parsed_count}")
+                self.log(f"Завершена обработка ссылки. Всего получено картинок: {parsed_count}")
 
             except Exception as e:
                 self.log(f"Критическая ошибка при парсинге {url}: {e}")
@@ -182,6 +246,7 @@ class ImageParser:
             self.log("Обработка всех ссылок завершена.")
         self.is_running = False
 
+    # ... (методы stop_processing и create_batches без изменений) ...
     def stop_processing(self):
         self.is_running = False
         self.log("Получен сигнал остановки.")
@@ -249,13 +314,19 @@ class ImageParser:
         return batches_created
 
 
-# --- Основная функция с GUI ---
 async def main(page: ft.Page):
-    page.title = "Парсер Данных"
+    page.title = "stock.adobe"
     page.window_width = 850
     page.window_height = 800
     page.vertical_alignment = ft.MainAxisAlignment.START
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
+
+    page.theme = ft.Theme(
+        color_scheme=ft.ColorScheme(
+            primary=ft.Colors.DEEP_PURPLE_300,
+            background=ft.Colors.GREY_900
+        )
+    )
 
     parser = None
     processing_task = None
@@ -285,7 +356,6 @@ async def main(page: ft.Page):
             add_log("Обработка уже запущена.")
             return
 
-        # Валидация
         if not links_input.value.strip():
             add_log("Ошибка: Введите хотя бы одну ссылку.")
             return
@@ -309,8 +379,8 @@ async def main(page: ft.Page):
             log_callback=add_log
         )
 
-        start_btn.disabled = True
-        stop_btn.disabled = False
+        start_btn.visible = False
+        stop_btn.visible = True
         create_batches_btn.disabled = True
         page.update()
 
@@ -323,8 +393,8 @@ async def main(page: ft.Page):
         except Exception as ex:
             add_log(f"Произошла ошибка во время обработки: {ex}")
         finally:
-            start_btn.disabled = False
-            stop_btn.disabled = True
+            start_btn.visible = True
+            stop_btn.visible = False
             create_batches_btn.disabled = False
             page.update()
 
@@ -366,13 +436,11 @@ async def main(page: ft.Page):
         else:
             add_log("Не удалось создать партии. Проверьте лог на наличие ошибок.")
 
-    # --- Элементы интерфейса ---
     links_input = ft.TextField(label="Ссылки (по одной на строку)", multiline=True, min_lines=6, max_lines=8)
     depth_input = ft.TextField(label="Глубина (страниц)", value="100", width=150, keyboard_type=ft.KeyboardType.NUMBER)
     archive_path = ft.TextField(label="Папка для архива", value="./archive/", expand=True, read_only=True)
     archive_browse_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=lambda _: file_picker.get_directory_path(
         dialog_title="Выберите папку для архива"), data="archive", tooltip="Выбрать папку")
-
     num_batches_input = ft.TextField(label="Количество партий", value="100", width=200,
                                      keyboard_type=ft.KeyboardType.NUMBER)
     batch_size_input = ft.TextField(label="Строк в партии", value="1000", width=200,
@@ -381,18 +449,17 @@ async def main(page: ft.Page):
     batches_path = ft.TextField(label="Папка для сохранения партий", value="./batches/", expand=True, read_only=True)
     batches_browse_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=lambda _: file_picker.get_directory_path(
         dialog_title="Выберите папку для партий"), data="batches", tooltip="Выбрать папку")
-
     log_output = ft.TextField(label="Лог выполнения", multiline=True, read_only=True, min_lines=10, expand=True)
 
-    start_btn = ft.ElevatedButton("Запуск", on_click=start_processing, icon=ft.Icons.PLAY_ARROW,
-                                  bgcolor=ft.Colors.GREEN, color=ft.Colors.WHITE)
-    stop_btn = ft.ElevatedButton("Остановить", on_click=stop_processing, icon=ft.Icons.STOP, bgcolor=ft.Colors.RED,
-                                 color=ft.Colors.WHITE, disabled=True)
+    start_btn = ft.ElevatedButton("Запуск", on_click=start_processing, width=100, icon=ft.Icons.PLAY_ARROW,
+                                  bgcolor=ft.Colors.PRIMARY, color=ft.Colors.WHITE)
+    stop_btn = ft.ElevatedButton("Остановить", on_click=stop_processing, width=150, icon=ft.Icons.STOP,
+                                 bgcolor=ft.Colors.RED,
+                                 color=ft.Colors.WHITE, visible=False)
     create_batches_btn = ft.ElevatedButton("Сформировать", on_click=create_batches_click,
                                            icon=ft.Icons.CREATE_NEW_FOLDER, bgcolor=ft.Colors.BLUE,
                                            color=ft.Colors.WHITE)
 
-    # --- Создание вкладок и компоновка ---
     tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
@@ -464,14 +531,12 @@ async def main(page: ft.Page):
     page.add(
         ft.Column(
             controls=[
-                ft.Text("Панель управления парсером", size=24, weight=ft.FontWeight.BOLD,
-                        text_align=ft.TextAlign.CENTER),
                 tabs,
                 ft.Divider(height=5, color="transparent"),
                 ft.Text("Лог выполнения", weight=ft.FontWeight.BOLD),
                 ft.Container(
                     content=log_output,
-                    expand=True  # Заставляет контейнер с логом занять все оставшееся место
+                    expand=True
                 )
             ],
             expand=True,
