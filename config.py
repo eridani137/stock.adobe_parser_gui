@@ -1,0 +1,11 @@
+from browserforge.fingerprints import Screen
+
+LONG_DELAY = 30
+
+BROWSER_OPTIONS = {
+    "headless": False,
+    "os": ["windows", "macos", "linux"],
+    "screen": Screen(max_width=1280, max_height=720),
+    "humanize": True,
+    "locale": "en-US"
+}
