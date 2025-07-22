@@ -246,7 +246,6 @@ class ImageParser:
             self.log("Обработка всех ссылок завершена.")
         self.is_running = False
 
-
     def stop_processing(self):
         self.is_running = False
         self.log("Получен сигнал остановки.")
@@ -318,8 +317,6 @@ async def main(page: ft.Page):
     page.title = "stock.adobe"
     page.window_width = 850
     page.window_height = 800
-    page.vertical_alignment = ft.MainAxisAlignment.START
-    page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
 
     page.theme = ft.Theme(
         color_scheme=ft.ColorScheme(
@@ -346,11 +343,12 @@ async def main(page: ft.Page):
 
     def add_log(message):
         timestamp = datetime.now().strftime("%H:%M:%S")
-        if log_output.value:
-            log_output.value += f"\n[{timestamp}] {message}"
-        else:
-            log_output.value = f"[{timestamp}] {message}"
-        page.update()
+        log_list.controls.append(
+            ft.Text(f"[{timestamp}] {message}", size=12, color=ft.Colors.WHITE)
+        )
+        if len(log_list.controls) > 100:
+            log_list.controls = log_list.controls[-100:]
+        log_list.update()
 
     async def start_processing(e):
         nonlocal parser, processing_task
@@ -438,9 +436,12 @@ async def main(page: ft.Page):
         else:
             add_log("Не удалось создать партии. Проверьте лог на наличие ошибок.")
 
-    links_input = ft.TextField(label="Ссылки (по одной на строку)", multiline=True, min_lines=6, max_lines=8, border_color=config.BORDER_COLOR)
-    depth_input = ft.TextField(label="Глубина (страниц)", value="100", width=150, keyboard_type=ft.KeyboardType.NUMBER, border_color=config.BORDER_COLOR)
-    archive_path = ft.TextField(label="Папка для архива", value="./archive/", expand=True, read_only=True, border_color=config.BORDER_COLOR)
+    links_input = ft.TextField(label="Ссылки (по одной на строку)", multiline=True, min_lines=6, max_lines=8,
+                               border_color=config.BORDER_COLOR)
+    depth_input = ft.TextField(label="Глубина (страниц)", value="100", width=150, keyboard_type=ft.KeyboardType.NUMBER,
+                               border_color=config.BORDER_COLOR)
+    archive_path = ft.TextField(label="Папка для архива", value="./archive/", expand=True, read_only=True,
+                                border_color=config.BORDER_COLOR)
     archive_browse_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=lambda _: file_picker.get_directory_path(
         dialog_title="Выберите папку для архива"), data="archive", tooltip="Выбрать папку")
     num_batches_input = ft.TextField(label="Количество партий", value="100", width=200,
@@ -448,10 +449,16 @@ async def main(page: ft.Page):
     batch_size_input = ft.TextField(label="Строк в партии", value="1000", width=200,
                                     keyboard_type=ft.KeyboardType.NUMBER, border_color=config.BORDER_COLOR)
     remove_from_archive_cb = ft.Checkbox(label="Удалять строки из архива", value=False)
-    batches_path = ft.TextField(label="Папка для сохранения партий", value="./batches/", expand=True, read_only=True, border_color=config.BORDER_COLOR)
+    batches_path = ft.TextField(label="Папка для сохранения партий", value="./batches/", expand=True, read_only=True,
+                                border_color=config.BORDER_COLOR)
     batches_browse_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=lambda _: file_picker.get_directory_path(
         dialog_title="Выберите папку для партий"), data="batches", tooltip="Выбрать папку")
-    log_output = ft.TextField(label="Лог выполнения", multiline=True, read_only=True, min_lines=10, expand=True)
+    log_list = ft.ListView(
+        expand=True,
+        spacing=2,
+        padding=ft.padding.all(10),
+        auto_scroll=True
+    )
 
     start_btn = ft.ElevatedButton("Запуск", on_click=start_processing, width=100, icon=ft.Icons.PLAY_ARROW,
                                   bgcolor=ft.Colors.PRIMARY, color=ft.Colors.WHITE)
@@ -530,7 +537,24 @@ async def main(page: ft.Page):
         expand=False,
     )
 
-    page.add(tabs)
+    page.add(
+        ft.Column(
+            controls=[
+                tabs,
+                ft.Text("Лог выполнения", weight=ft.FontWeight.BOLD),
+                ft.Container(
+                    content=log_list,
+                    height=200,
+                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border_radius=8
+                )
+            ],
+            expand=True,
+            spacing=10
+        )
+    )
+
+    add_log("Приложение запущено и готово к работе")
 
     # page.add(
     #     ft.Column(
@@ -539,8 +563,7 @@ async def main(page: ft.Page):
     #             ft.Divider(height=5, color="transparent"),
     #             ft.Text("Лог выполнения", weight=ft.FontWeight.BOLD),
     #             ft.Container(
-    #                 content=log_output,
-    #                 expand=True
+    #                 content=log_output
     #             )
     #         ],
     #         expand=True,
