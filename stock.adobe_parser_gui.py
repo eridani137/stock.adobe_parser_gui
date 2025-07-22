@@ -132,6 +132,7 @@ async def main(page: ft.Page):
         finally:
             start_btn.visible = True
             stop_btn.visible = False
+            set_controls_enabled(True)
             create_batches_btn.disabled = False
             page.update()
 

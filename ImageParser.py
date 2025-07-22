@@ -153,7 +153,6 @@ class ImageParser:
     async def parse_single_url(self, url, depth=100):
         if not self.is_running:
             return
-        self.log(f"Начинаю обработку: {url}")
         parsed_count = 0
 
         async with AsyncCamoufox(**config.BROWSER_OPTIONS) as browser_instance:
