@@ -190,7 +190,7 @@ async def main(page: ft.Page):
         expand=True,
         spacing=2,
         padding=ft.padding.all(5),
-        auto_scroll=True
+        auto_scroll=True,
     )
 
     start_btn = ft.ElevatedButton("Запуск",
@@ -314,7 +314,7 @@ async def main(page: ft.Page):
                 ft.Container(
                     content=log_list,
                     height=300,
-                    border=ft.border.all(1, ft.Colors.OUTLINE),
+                    border=ft.border.all(1, ft.Colors.PRIMARY),
                     border_radius=8,
                 )
             ]
