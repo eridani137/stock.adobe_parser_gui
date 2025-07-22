@@ -15,7 +15,7 @@ configure(logger)
 
 async def main(page: ft.Page):
     page.title = "stock.adobe"
-    page.window.height = 840
+    page.window.height = 895
     page.window.center()
 
     page.theme_mode = ft.ThemeMode.DARK
@@ -61,6 +61,13 @@ async def main(page: ft.Page):
             log_list.controls = log_list.controls[-100:]
         log_list.update()
 
+    interactive_controls = []
+
+    def set_controls_enabled(enabled: bool):
+        for ctrl in interactive_controls:
+            ctrl.disabled = not enabled
+        page.update()
+
     async def start_processing(e):
         nonlocal parser, processing_task
         if processing_task and not processing_task.done():
@@ -98,6 +105,7 @@ async def main(page: ft.Page):
             log_callback=add_log
         )
 
+        set_controls_enabled(False)
         start_btn.visible = False
         stop_btn.visible = True
         create_batches_btn.disabled = True
@@ -124,6 +132,10 @@ async def main(page: ft.Page):
         if processing_task and not processing_task.done():
             processing_task.cancel()
         add_log("Отправлен сигнал остановки...", "warning")
+        set_controls_enabled(True)
+        stop_btn.visible = False
+        start_btn.visible = True
+        page.update()
 
     def create_batches_click(e):
         try:
@@ -181,19 +193,51 @@ async def main(page: ft.Page):
         auto_scroll=True
     )
 
-    start_btn = ft.ElevatedButton("Запуск", on_click=start_processing, width=100, icon=ft.Icons.PLAY_ARROW,
-                                  bgcolor=ft.Colors.PRIMARY, color=ft.Colors.WHITE)
-    stop_btn = ft.ElevatedButton("Остановить", on_click=stop_processing, width=150, icon=ft.Icons.STOP,
+    start_btn = ft.ElevatedButton("Запуск",
+                                  on_click=start_processing,
+                                  width=120,
+                                  icon=ft.Icons.PLAY_ARROW,
+                                  bgcolor=ft.Colors.PRIMARY,
+                                  color=ft.Colors.BLACK,
+                                  style=ft.ButtonStyle(
+                                      shape=ft.RoundedRectangleBorder(radius=10),
+                                      padding=ft.padding.all(15)
+                                  ))
+    stop_btn = ft.ElevatedButton("Остановить",
+                                 on_click=stop_processing,
+                                 width=150,
+                                 icon=ft.Icons.STOP,
                                  bgcolor=ft.Colors.RED,
-                                 color=ft.Colors.WHITE, visible=False)
-    create_batches_btn = ft.ElevatedButton("Сформировать", on_click=create_batches_click,
-                                           icon=ft.Icons.CREATE_NEW_FOLDER, bgcolor=ft.Colors.PRIMARY,
-                                           color=ft.Colors.WHITE)
+                                 color=ft.Colors.WHITE,
+                                 visible=False,
+                                 style=ft.ButtonStyle(
+                                     shape=ft.RoundedRectangleBorder(radius=10),
+                                     padding=ft.padding.all(15)
+                                 ))
+    create_batches_btn = ft.ElevatedButton("Сформировать",
+                                           on_click=create_batches_click,
+                                           icon=ft.Icons.CREATE_NEW_FOLDER,
+                                           bgcolor=ft.Colors.PRIMARY,
+                                           color=ft.Colors.BLACK,
+                                           style=ft.ButtonStyle(
+                                               shape=ft.RoundedRectangleBorder(radius=10),
+                                               padding=ft.padding.all(15)
+                                           ))
+
+    interactive_controls.extend([
+        links_input,
+        depth_input,
+        archive_browse_btn,
+        num_batches_input,
+        batch_size_input,
+        remove_from_archive_cb,
+        batches_browse_btn,
+        create_batches_btn
+    ])
 
     tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
-        expand=True,
         tabs=[
             ft.Tab(
                 text="Парсинг",
@@ -217,12 +261,12 @@ async def main(page: ft.Page):
                                     ft.Text("2. Укажите, куда сохранять архив", weight=ft.FontWeight.BOLD),
                                     ft.Row([archive_path, archive_browse_btn])
                                 ]),
-                                padding=15
+                                padding=7
                             )
                         ),
-                        ft.Row([start_btn, stop_btn], alignment=ft.MainAxisAlignment.CENTER, spacing=20)
+                        ft.Row([start_btn, stop_btn], alignment=ft.MainAxisAlignment.CENTER, spacing=7)
                     ],
-                    spacing=15
+                    spacing=7
                 )
             ),
             ft.Tab(
@@ -235,7 +279,7 @@ async def main(page: ft.Page):
                             content=ft.Container(
                                 content=ft.Column([
                                     ft.Text("1. Настройте параметры партий", weight=ft.FontWeight.BOLD),
-                                    ft.Row([num_batches_input, batch_size_input], spacing=10),
+                                    ft.Row([num_batches_input, batch_size_input], spacing=7),
                                     remove_from_archive_cb
                                 ]),
                                 padding=15
@@ -252,7 +296,7 @@ async def main(page: ft.Page):
                         ),
                         ft.Row([create_batches_btn], alignment=ft.MainAxisAlignment.CENTER)
                     ],
-                    spacing=15
+                    spacing=7
                 )
             ),
         ]
@@ -261,12 +305,15 @@ async def main(page: ft.Page):
     page.add(
         ft.Column(
             expand=True,
-            spacing=10,
+            spacing=7,
             controls=[
-                tabs,
+                ft.Container(
+                    content=tabs,
+                    expand=True,
+                ),
                 ft.Container(
                     content=log_list,
-                    height=200,
+                    height=300,
                     border=ft.border.all(1, ft.Colors.OUTLINE),
                     border_radius=8,
                 )
