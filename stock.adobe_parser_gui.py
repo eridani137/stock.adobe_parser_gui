@@ -14,6 +14,7 @@ configure(logger)
 
 async def main(page: ft.Page):
     page.title = "stock.adobe"
+    page.window.height = 900
     page.window.center()
 
     page.theme_mode = ft.ThemeMode.DARK
@@ -171,6 +172,7 @@ async def main(page: ft.Page):
     tabs = ft.Tabs(
         selected_index=0,
         animation_duration=300,
+        expand=True,
         tabs=[
             ft.Tab(
                 text="Парсинг",
@@ -232,12 +234,13 @@ async def main(page: ft.Page):
                     spacing=15
                 )
             ),
-        ],
-        expand=False,
+        ]
     )
 
     page.add(
         ft.Column(
+            expand=True,
+            spacing=10,
             controls=[
                 tabs,
                 ft.Text("Лог выполнения", weight=ft.FontWeight.BOLD),
@@ -245,11 +248,9 @@ async def main(page: ft.Page):
                     content=log_list,
                     height=200,
                     border=ft.border.all(1, ft.Colors.OUTLINE),
-                    border_radius=8
+                    border_radius=8,
                 )
-            ],
-            expand=True,
-            spacing=10
+            ]
         )
     )
 
