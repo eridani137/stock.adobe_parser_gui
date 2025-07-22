@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from datetime import datetime
 
 import flet as ft
@@ -14,7 +15,7 @@ configure(logger)
 
 async def main(page: ft.Page):
     page.title = "stock.adobe"
-    page.window.height = 900
+    page.window.height = 840
     page.window.center()
 
     page.theme_mode = ft.ThemeMode.DARK
@@ -32,20 +33,30 @@ async def main(page: ft.Page):
 
     def on_dialog_result(e: ft.FilePickerResultEvent):
         if e.path:
+            abs_path = os.path.abspath(e.path)
             if e.control.data == "archive":
-                archive_path.value = e.path
+                archive_path.value = abs_path
             elif e.control.data == "batches":
-                batches_path.value = e.path
+                batches_path.value = abs_path
             page.update()
 
     file_picker = ft.FilePicker(on_result=on_dialog_result)
     page.overlay.append(file_picker)
 
-    def add_log(message):
+    def add_log(message, level="info"):
+        level_colors = {
+            "debug": ft.Colors.GREY,
+            "info": ft.Colors.GREEN,
+            "warning": ft.Colors.YELLOW,
+            "error": ft.Colors.RED,
+        }
         timestamp = datetime.now().strftime("%H:%M:%S")
+
+        color = level_colors.get(level.lower(), ft.Colors.WHITE)
         log_list.controls.append(
-            ft.Text(f"[{timestamp}] {message}", size=12, color=ft.Colors.WHITE)
+            ft.Text(f"[{timestamp}] {message}", size=15, color=color)
         )
+
         if len(log_list.controls) > 100:
             log_list.controls = log_list.controls[-100:]
         log_list.update()
@@ -53,25 +64,33 @@ async def main(page: ft.Page):
     async def start_processing(e):
         nonlocal parser, processing_task
         if processing_task and not processing_task.done():
-            add_log("Обработка уже запущена.")
+            add_log("Обработка уже запущена.", "warning")
             return
 
         if not links_input.value.strip():
-            add_log("Ошибка: Введите хотя бы одну ссылку.")
+            add_log("Ошибка: Введите хотя бы одну ссылку.", "error")
             return
         try:
             depth = int(depth_input.value)
             if not 1 <= depth <= 100:
-                add_log("Ошибка: Глубина обработки должна быть от 1 до 100.")
+                add_log("Ошибка: Глубина обработки должна быть от 1 до 100.", "error")
                 return
         except ValueError:
-            add_log("Ошибка: Глубина обработки должна быть числом.")
+            add_log("Ошибка: Глубина обработки должна быть числом.", "error")
             return
 
         links = [line.strip() for line in links_input.value.split('\n') if line.strip()]
         if not links:
-            add_log("Ошибка: Не найдено валидных ссылок для обработки.")
+            add_log("Ошибка: Не найдено валидных ссылок для обработки.", "error")
             return
+
+        for folder in [archive_path.value, batches_path.value]:
+            try:
+                os.makedirs(folder, exist_ok=True)
+                add_log(f"Папка создана/существует: {folder}", "debug")
+            except Exception as ex:
+                add_log(f"Ошибка при создании папки {folder}: {ex}", "error")
+                return
 
         parser = ImageParser(
             archive_folder=archive_path.value,
@@ -84,14 +103,14 @@ async def main(page: ft.Page):
         create_batches_btn.disabled = True
         page.update()
 
-        add_log("Начинаю обработку ссылок...")
+        add_log("Начинаю обработку ссылок...", "info")
         processing_task = asyncio.create_task(parser.process_links(links, depth))
         try:
             await processing_task
         except asyncio.CancelledError:
-            add_log("Обработка остановлена пользователем.")
+            add_log("Обработка остановлена пользователем.", "warning")
         except Exception as ex:
-            add_log(f"Произошла ошибка во время обработки: {ex}")
+            add_log(f"Произошла ошибка во время обработки: {ex}", "error")
         finally:
             start_btn.visible = True
             stop_btn.visible = False
@@ -104,20 +123,20 @@ async def main(page: ft.Page):
             parser.stop_processing()
         if processing_task and not processing_task.done():
             processing_task.cancel()
-        add_log("Отправлен сигнал остановки...")
+        add_log("Отправлен сигнал остановки...", "warning")
 
     def create_batches_click(e):
         try:
             num_batches = int(num_batches_input.value)
             batch_size = int(batch_size_input.value)
             if not 1 <= num_batches <= 1000:
-                add_log("Ошибка: Количество партий должно быть от 1 до 1000.")
+                add_log("Ошибка: Количество партий должно быть от 1 до 1000.", "error")
                 return
             if not 1 <= batch_size <= 10000:
-                add_log("Ошибка: Количество строк в партии должно быть от 1 до 10 000.")
+                add_log("Ошибка: Количество строк в партии должно быть от 1 до 10 000.", "error")
                 return
         except ValueError:
-            add_log("Ошибка: Параметры партий должны быть числами.")
+            add_log("Ошибка: Параметры партий должны быть числами.", "error")
             return
 
         temp_parser = ImageParser(
@@ -125,22 +144,23 @@ async def main(page: ft.Page):
             batches_folder=batches_path.value,
             log_callback=add_log
         )
-        add_log("Начинаю создание партий...")
+        add_log("Начинаю создание партий...", "info")
         created_count = temp_parser.create_batches(
             num_batches=num_batches,
             batch_size=batch_size,
             remove_from_archive=remove_from_archive_cb.value
         )
         if created_count > 0:
-            add_log(f"Успешно создано {created_count} партий.")
+            add_log(f"Успешно создано {created_count} партий.", "info")
         else:
-            add_log("Не удалось создать партии. Проверьте лог на наличие ошибок.")
+            add_log("Не удалось создать партии. Проверьте лог на наличие ошибок.", "error")
 
     links_input = ft.TextField(label="Ссылки (по одной на строку)", multiline=True, min_lines=6, max_lines=8,
                                border_color=config.BORDER_COLOR)
     depth_input = ft.TextField(label="Глубина (страниц)", value="100", width=150, keyboard_type=ft.KeyboardType.NUMBER,
                                border_color=config.BORDER_COLOR)
-    archive_path = ft.TextField(label="Папка для архива", value="./archive/", expand=True, read_only=True,
+    archive_path = ft.TextField(label="Папка для архива", value=os.path.abspath("./archive/"), expand=True,
+                                read_only=True,
                                 border_color=config.BORDER_COLOR)
     archive_browse_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=lambda _: file_picker.get_directory_path(
         dialog_title="Выберите папку для архива"), data="archive", tooltip="Выбрать папку")
@@ -149,14 +169,15 @@ async def main(page: ft.Page):
     batch_size_input = ft.TextField(label="Строк в партии", value="1000", width=200,
                                     keyboard_type=ft.KeyboardType.NUMBER, border_color=config.BORDER_COLOR)
     remove_from_archive_cb = ft.Checkbox(label="Удалять строки из архива", value=False)
-    batches_path = ft.TextField(label="Папка для сохранения партий", value="./batches/", expand=True, read_only=True,
+    batches_path = ft.TextField(label="Папка для сохранения партий", value=os.path.abspath("./batches/"), expand=True,
+                                read_only=True,
                                 border_color=config.BORDER_COLOR)
     batches_browse_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=lambda _: file_picker.get_directory_path(
         dialog_title="Выберите папку для партий"), data="batches", tooltip="Выбрать папку")
     log_list = ft.ListView(
         expand=True,
         spacing=2,
-        padding=ft.padding.all(10),
+        padding=ft.padding.all(5),
         auto_scroll=True
     )
 
@@ -243,7 +264,6 @@ async def main(page: ft.Page):
             spacing=10,
             controls=[
                 tabs,
-                ft.Text("Лог выполнения", weight=ft.FontWeight.BOLD),
                 ft.Container(
                     content=log_list,
                     height=200,
@@ -253,23 +273,6 @@ async def main(page: ft.Page):
             ]
         )
     )
-
-    add_log("Приложение запущено и готово к работе")
-
-    # page.add(
-    #     ft.Column(
-    #         controls=[
-    #             tabs,
-    #             ft.Divider(height=5, color="transparent"),
-    #             ft.Text("Лог выполнения", weight=ft.FontWeight.BOLD),
-    #             ft.Container(
-    #                 content=log_output
-    #             )
-    #         ],
-    #         expand=True,
-    #         spacing=5
-    #     )
-    # )
 
 
 if __name__ == "__main__":
