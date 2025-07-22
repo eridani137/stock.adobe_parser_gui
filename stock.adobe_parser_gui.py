@@ -246,7 +246,7 @@ class ImageParser:
             self.log("Обработка всех ссылок завершена.")
         self.is_running = False
 
-    # ... (методы stop_processing и create_batches без изменений) ...
+
     def stop_processing(self):
         self.is_running = False
         self.log("Получен сигнал остановки.")
@@ -323,10 +323,12 @@ async def main(page: ft.Page):
 
     page.theme = ft.Theme(
         color_scheme=ft.ColorScheme(
-            primary=ft.Colors.DEEP_PURPLE_300,
-            background=ft.Colors.GREY_900
+            primary=ft.Colors.DEEP_PURPLE_200,
+            on_surface=ft.Colors.WHITE,
+            on_background=ft.Colors.WHITE
         )
     )
+    page.update()
 
     parser = None
     processing_task = None
@@ -436,17 +438,17 @@ async def main(page: ft.Page):
         else:
             add_log("Не удалось создать партии. Проверьте лог на наличие ошибок.")
 
-    links_input = ft.TextField(label="Ссылки (по одной на строку)", multiline=True, min_lines=6, max_lines=8)
-    depth_input = ft.TextField(label="Глубина (страниц)", value="100", width=150, keyboard_type=ft.KeyboardType.NUMBER)
-    archive_path = ft.TextField(label="Папка для архива", value="./archive/", expand=True, read_only=True)
+    links_input = ft.TextField(label="Ссылки (по одной на строку)", multiline=True, min_lines=6, max_lines=8, border_color=config.BORDER_COLOR)
+    depth_input = ft.TextField(label="Глубина (страниц)", value="100", width=150, keyboard_type=ft.KeyboardType.NUMBER, border_color=config.BORDER_COLOR)
+    archive_path = ft.TextField(label="Папка для архива", value="./archive/", expand=True, read_only=True, border_color=config.BORDER_COLOR)
     archive_browse_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=lambda _: file_picker.get_directory_path(
         dialog_title="Выберите папку для архива"), data="archive", tooltip="Выбрать папку")
     num_batches_input = ft.TextField(label="Количество партий", value="100", width=200,
-                                     keyboard_type=ft.KeyboardType.NUMBER)
+                                     keyboard_type=ft.KeyboardType.NUMBER, border_color=config.BORDER_COLOR)
     batch_size_input = ft.TextField(label="Строк в партии", value="1000", width=200,
-                                    keyboard_type=ft.KeyboardType.NUMBER)
+                                    keyboard_type=ft.KeyboardType.NUMBER, border_color=config.BORDER_COLOR)
     remove_from_archive_cb = ft.Checkbox(label="Удалять строки из архива", value=False)
-    batches_path = ft.TextField(label="Папка для сохранения партий", value="./batches/", expand=True, read_only=True)
+    batches_path = ft.TextField(label="Папка для сохранения партий", value="./batches/", expand=True, read_only=True, border_color=config.BORDER_COLOR)
     batches_browse_btn = ft.IconButton(icon=ft.Icons.FOLDER_OPEN, on_click=lambda _: file_picker.get_directory_path(
         dialog_title="Выберите папку для партий"), data="batches", tooltip="Выбрать папку")
     log_output = ft.TextField(label="Лог выполнения", multiline=True, read_only=True, min_lines=10, expand=True)
@@ -457,7 +459,7 @@ async def main(page: ft.Page):
                                  bgcolor=ft.Colors.RED,
                                  color=ft.Colors.WHITE, visible=False)
     create_batches_btn = ft.ElevatedButton("Сформировать", on_click=create_batches_click,
-                                           icon=ft.Icons.CREATE_NEW_FOLDER, bgcolor=ft.Colors.BLUE,
+                                           icon=ft.Icons.CREATE_NEW_FOLDER, bgcolor=ft.Colors.PRIMARY,
                                            color=ft.Colors.WHITE)
 
     tabs = ft.Tabs(
@@ -528,21 +530,23 @@ async def main(page: ft.Page):
         expand=False,
     )
 
-    page.add(
-        ft.Column(
-            controls=[
-                tabs,
-                ft.Divider(height=5, color="transparent"),
-                ft.Text("Лог выполнения", weight=ft.FontWeight.BOLD),
-                ft.Container(
-                    content=log_output,
-                    expand=True
-                )
-            ],
-            expand=True,
-            spacing=5
-        )
-    )
+    page.add(tabs)
+
+    # page.add(
+    #     ft.Column(
+    #         controls=[
+    #             tabs,
+    #             ft.Divider(height=5, color="transparent"),
+    #             ft.Text("Лог выполнения", weight=ft.FontWeight.BOLD),
+    #             ft.Container(
+    #                 content=log_output,
+    #                 expand=True
+    #             )
+    #         ],
+    #         expand=True,
+    #         spacing=5
+    #     )
+    # )
 
 
 if __name__ == "__main__":

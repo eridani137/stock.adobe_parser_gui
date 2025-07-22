@@ -1,6 +1,9 @@
 from browserforge.fingerprints import Screen
+import flet as ft
 
 LONG_DELAY = 30
+
+BORDER_COLOR = ft.Colors.DEEP_PURPLE_200
 
 BROWSER_OPTIONS = {
     "headless": False,
