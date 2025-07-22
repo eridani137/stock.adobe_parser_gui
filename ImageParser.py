@@ -45,6 +45,7 @@ async def goto_next_page(page: Page) -> Tuple[bool, bool]:
                 break
             else:
                 logger.warning("Кнопка следующей страницы не найдена")
+                is_complete = True  # Если кнопки нет, считаем, что это конец
                 break
 
         except Exception as e:
@@ -67,13 +68,16 @@ class ImageParser:
         self.archive_names_file = "archive_name.csv"
         self.archive_links_file = "archive_links.csv"
         self.processed_links = set()
+        self.existing_descriptions = set()
         self.log_callback = log_callback
         self.is_running = False
 
-    def log(self, message):
+    def log(self, message, level="info"):
         if self.log_callback:
-            self.log_callback(message)
-        logger.info(message)
+            self.log_callback(message, level)
+
+        log_func = getattr(logger, level, logger.info)
+        log_func(message)
 
     def ensure_folders(self):
         os.makedirs(self.archive_folder, exist_ok=True)
@@ -92,6 +96,22 @@ class ImageParser:
                             self.processed_links.add(row[0])
             except Exception as e:
                 self.log(f"Ошибка загрузки архива ссылок: {e}")
+
+    def load_existing_descriptions(self):
+        names_file = os.path.join(self.archive_folder, self.archive_names_file)
+        self.existing_descriptions.clear()
+        if os.path.exists(names_file):
+            try:
+                with open(names_file, 'r', encoding='utf-8', newline='') as f:
+                    reader = csv.reader(f)
+                    next(reader, None)  # Пропустить заголовок
+                    for row in reader:
+                        # Убедимся, что в строке есть описание
+                        if row and len(row) > 1:
+                            self.existing_descriptions.add(row[1])
+                self.log(f"Загружено {len(self.existing_descriptions)} уникальных описаний из архива.")
+            except Exception as e:
+                self.log(f"Ошибка загрузки архива описаний: {e}", "error")
 
     def filter_new_links(self, links):
         new_links = []
@@ -183,14 +203,17 @@ class ImageParser:
                                             name = image_name_content.replace('\n', ' ').strip()
                                             name = re.sub(r'\s+', ' ', name).strip()
 
-                                            if name:
+                                            if name and name not in self.existing_descriptions:
                                                 names_writer.writerow([current_id, name])
                                                 names_file.flush()
 
+                                                self.existing_descriptions.add(name)
                                                 self.log(f"[{current_id}] {name}")
 
                                                 parsed_count += 1
                                                 current_id += 1
+                                            else:
+                                                pass
                                 except Exception as e:
                                     self.log(f"Ошибка при обработке изображения: {e}")
 
@@ -225,6 +248,8 @@ class ImageParser:
     async def process_links(self, links, depth=100):
         self.ensure_folders()
         self.load_processed_links()
+        self.load_existing_descriptions()
+
         new_links = self.filter_new_links(links)
 
         if not new_links:
@@ -275,13 +300,14 @@ class ImageParser:
         self.ensure_folders()
         batches_created = 0
         available_data = list(all_descriptions)
+        random.shuffle(available_data)
 
         for i in range(num_batches):
             if len(available_data) < batch_size:
                 self.log(f"Недостаточно данных для создания партии {i + 1}.")
                 break
 
-            batch_data = random.sample(available_data, batch_size)
+            batch_data = available_data[:batch_size]
 
             if remove_from_archive:
                 available_data = [item for item in available_data if item not in batch_data]
