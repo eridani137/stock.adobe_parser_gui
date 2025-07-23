@@ -289,12 +289,8 @@ class ImageParser:
             self.log(f"Ошибка чтения архива: {e}")
             return 0
 
-        if remove_from_archive and len(all_descriptions) < num_batches * batch_size:
-            self.log(f"В архиве недостаточно данных для создания {num_batches} партий по {batch_size} с удалением.")
-            return 0
-        if not remove_from_archive and len(all_descriptions) < batch_size:
-            self.log(f"В архиве недостаточно данных для создания партий размером {batch_size}.")
-            return 0
+        if len(all_descriptions) < num_batches * batch_size:
+            self.log(f"В архиве недостаточно данных для создания {num_batches} партий по {batch_size} строк.")
 
         self.ensure_folders()
         batches_created = 0
@@ -303,13 +299,12 @@ class ImageParser:
 
         for i in range(num_batches):
             if len(available_data) < batch_size:
-                self.log(f"Недостаточно данных для создания партии {i + 1}.")
+                self.log(
+                    f"Недостаточно оставшихся данных для создания партии {i + 1}. Создано {batches_created} партий.")
                 break
 
             batch_data = available_data[:batch_size]
-
-            if remove_from_archive:
-                available_data = [item for item in available_data if item not in batch_data]
+            available_data = available_data[batch_size:]
 
             batch_file = os.path.join(self.batches_folder, f"batch_{i + 1}.csv")
             try:
