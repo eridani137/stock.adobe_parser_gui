@@ -15,7 +15,7 @@ configure(logger)
 
 async def main(page: ft.Page):
     page.title = "stock.adobe"
-    page.window.height = 895
+    page.window.height = 795
     page.window.center()
 
     page.theme_mode = ft.ThemeMode.DARK
@@ -178,7 +178,7 @@ async def main(page: ft.Page):
         else:
             add_log("Не удалось создать партии. Проверьте лог на наличие ошибок.", "error")
 
-    links_input = ft.TextField(label="Ссылки (по одной на строку)", multiline=True, min_lines=6, max_lines=8,
+    links_input = ft.TextField(label="Ссылки (по одной на строку)", multiline=True, min_lines=4, max_lines=6,
                                border_color=config.BORDER_COLOR)
     depth_input = ft.TextField(label="Глубина (страниц)", value="100", width=150, keyboard_type=ft.KeyboardType.NUMBER,
                                border_color=config.BORDER_COLOR)
@@ -324,7 +324,7 @@ async def main(page: ft.Page):
                 ),
                 ft.Container(
                     content=log_list,
-                    height=300,
+                    height=250,
                     border=ft.border.all(1, ft.Colors.PRIMARY),
                     border_radius=8,
                 )
