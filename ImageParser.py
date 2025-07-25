@@ -25,46 +25,37 @@ async def goto_next_page(page: Page) -> Tuple[bool, bool]:
 
     for retry in range(max_retries):
         try:
-            await page.wait_for_load_state('networkidle', timeout=60000)
+            await asyncio.sleep(config.LONG_DELAY)
+            next_page = await page.query_selector(selector)
 
-            await asyncio.sleep(2)
+            if next_page:
+                if await next_page.is_disabled():
+                    is_complete = True
+                    break
+                is_attached = await next_page.evaluate("el => el.isConnected")
+                if not is_attached:
+                    logger.warning(f"Элемент кнопки не прикреплен к DOM, повторная попытка {retry + 1}")
+                    continue
 
-            next_page_button = await page.query_selector(selector)
-
-            if not next_page_button:
-                logger.warning("Кнопка следующей страницы не найдена, завершаем пагинацию.")
-                is_complete = True
-                break
-
-            if await next_page_button.is_disabled():
-                logger.info("Кнопка следующей страницы неактивна, достигнут конец.")
-                is_complete = True
-                break
-
-            try:
-                logger.info(f"Попытка {retry + 1}: Клик по кнопке 'Next'...")
                 next_page_locator = page.locator(selector)
-                await next_page_locator.scroll_into_view_if_needed()
-                await next_page_locator.click(timeout=30000)
-                next_page_clicked = True
-                logger.info("Переход на следующую страницу выполнен.")
-                break
 
-            except Exception as e:
-                logger.warning(f"Стандартный клик не удался: {e}. Пробуем клик через JavaScript.")
-                await next_page_button.evaluate("el => el.click()")
+                await next_page_locator.click()
+
                 next_page_clicked = True
-                logger.info("Переход на следующую страницу выполнен с помощью JS-клика.")
+                break
+            else:
+                logger.warning("Кнопка следующей страницы не найдена")
+                is_complete = True  # Если кнопки нет, считаем, что это конец
                 break
 
         except Exception as e:
             logger.warning(
                 f"Ошибка при попытке перейти на следующую страницу (попытка {retry + 1}): {e}")
             if retry < max_retries - 1:
-                await asyncio.sleep(5)
+                await asyncio.sleep(2)
                 continue
             else:
-                logger.error("Не удалось перейти на следующую страницу после всех попыток.")
+                logger.error("Не удалось перейти на следующую страницу после всех попыток")
                 break
 
     return is_complete, next_page_clicked
